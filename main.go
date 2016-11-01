@@ -15,7 +15,7 @@ const REVEAL_JS_URL = "git@github.com:hakimel/reveal.js.git"
 
 func main() {
 	if err := Main(os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
 	}
 }
@@ -24,6 +24,13 @@ func Main(args []string) error {
 	c, err := ParseArgs(args)
 	if err != nil {
 		return err
+	}
+
+	if !Exists(c.TargetDir) {
+		err := os.Mkdir(c.TargetDir, 0777)
+		if err != nil {
+			return errors.Wrap(err, "Creating target directory is failed")
+		}
 	}
 
 	var dir string
@@ -47,17 +54,24 @@ func Main(args []string) error {
 }
 
 type Config struct {
-	Dir string
+	Dir       string
+	TargetDir string
 }
 
 func ParseArgs(args []string) (*Config, error) {
 	c := new(Config)
-	fs := pflag.NewFlagSet("reveal-init", pflag.ContinueOnError)
+	fs := pflag.NewFlagSet("reveal-init", pflag.ExitOnError)
 	fs.StringVarP(&c.Dir, "dir", "d", "", "exist reveal.js directory")
 
 	err := fs.Parse(args)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error parsing is failed")
+	}
+
+	if len(fs.Args()) <= 1 {
+		return nil, errors.Errorf("Please specify target directory as an argument")
+	} else {
+		c.TargetDir = fs.Arg(1)
 	}
 	return c, nil
 }
@@ -118,4 +132,8 @@ func ContainStringSlice(str string, slice []string) bool {
 		}
 	}
 	return false
+}
+func Exists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil
 }

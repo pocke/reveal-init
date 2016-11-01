@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/ogier/pflag"
 	"github.com/pkg/errors"
 )
 
@@ -20,19 +21,45 @@ func main() {
 }
 
 func Main(args []string) error {
-	dir, err := GitCloneReveal()
+	c, err := ParseArgs(args)
 	if err != nil {
 		return err
 	}
+
+	var dir string
+	if c.Dir == "" {
+		var err error
+		dir, err = GitCloneReveal()
+		if err != nil {
+			return err
+		}
+	} else {
+		dir = c.Dir
+	}
+
 	files, err := GrepCopyTargets(dir)
 	if err != nil {
 		return err
 	}
-	// TODO: index.html を何とかする
-	// TODO: md mode
 	fmt.Println(files)
 
 	return nil
+}
+
+type Config struct {
+	Dir string
+}
+
+func ParseArgs(args []string) (*Config, error) {
+	c := new(Config)
+	fs := pflag.NewFlagSet("reveal-init", pflag.ContinueOnError)
+	fs.StringVarP(&c.Dir, "dir", "d", "", "exist reveal.js directory")
+
+	err := fs.Parse(args)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error parsing is failed")
+	}
+	return c, nil
 }
 
 // Returns cloned dir

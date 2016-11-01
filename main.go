@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 
 	"github.com/ogier/pflag"
@@ -26,42 +27,48 @@ func Main(args []string) error {
 		return err
 	}
 
-	if !Exists(c.TargetDir) {
-		err := os.Mkdir(c.TargetDir, 0777)
+	if !Exists(c.DstDir) {
+		err := os.Mkdir(c.DstDir, 0777)
 		if err != nil {
 			return errors.Wrap(err, "Creating target directory is failed")
 		}
 	}
 
-	var dir string
-	if c.Dir == "" {
-		var err error
-		dir, err = GitCloneReveal()
+	if c.SrcDir == "" {
+		dir, err := GitCloneReveal()
 		if err != nil {
 			return err
 		}
-	} else {
-		dir = c.Dir
+		c.SrcDir = dir
+		defer os.RemoveAll(dir)
 	}
 
-	files, err := GrepCopyTargets(dir)
+	files, err := GrepCopyTargets(c.SrcDir)
 	if err != nil {
 		return err
 	}
-	fmt.Println(files)
+	for _, file := range files {
+		err := CopyFile(
+			path.Join(c.SrcDir, file),
+			path.Join(c.DstDir, file),
+		)
+		if err != nil {
+			return errors.Wrap(err, "Copying file is failed")
+		}
+	}
 
 	return nil
 }
 
 type Config struct {
-	Dir       string
-	TargetDir string
+	SrcDir string
+	DstDir string
 }
 
 func ParseArgs(args []string) (*Config, error) {
 	c := new(Config)
 	fs := pflag.NewFlagSet("reveal-init", pflag.ExitOnError)
-	fs.StringVarP(&c.Dir, "dir", "d", "", "exist reveal.js directory")
+	fs.StringVarP(&c.SrcDir, "dir", "d", "", "exist reveal.js directory")
 
 	err := fs.Parse(args)
 	if err != nil {
@@ -71,7 +78,7 @@ func ParseArgs(args []string) (*Config, error) {
 	if len(fs.Args()) <= 1 {
 		return nil, errors.Errorf("Please specify target directory as an argument")
 	} else {
-		c.TargetDir = fs.Arg(1)
+		c.DstDir = fs.Arg(1)
 	}
 	return c, nil
 }
@@ -110,6 +117,7 @@ func GrepCopyTargets(dir string) ([]string, error) {
 		"bower.json",
 		"demo.html",
 		"package.json",
+		"",
 	}
 	for _, file := range files {
 		if strings.HasPrefix(file, "test/") ||

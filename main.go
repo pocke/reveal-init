@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/ogier/pflag"
 	"github.com/pkg/errors"
 )
@@ -22,7 +23,12 @@ func main() {
 }
 
 func Main(args []string) error {
-	c, err := ParseArgs(args)
+	confArgs, err := LoadConfigFile()
+	if err != nil {
+		return err
+	}
+
+	c, err := ParseArgs(append(confArgs, args...))
 	if err != nil {
 		return err
 	}
@@ -141,7 +147,24 @@ func ContainStringSlice(str string, slice []string) bool {
 	}
 	return false
 }
+
 func Exists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil
+}
+
+func LoadConfigFile() ([]string, error) {
+	path, err := homedir.Expand("~/.config/reveal-init")
+	if err != nil {
+		return nil, errors.Wrap(err, "Expand path is failed")
+	}
+	if !Exists(path) {
+		return []string{}, nil
+	}
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	s := strings.Trim(string(b), "\n")
+	return strings.Split(s, " "), nil
 }
